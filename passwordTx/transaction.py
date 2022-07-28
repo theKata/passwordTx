@@ -1,10 +1,10 @@
 import getpass
 import os
+from typing import Union
 from web3 import Web3, contract
 import time
 
-from passwordTx import ROOT_DIR
-from passwordTx.utils import create_key, encrypt_key, read_private_key
+from passwordTx.utils import create_key, encrypt_key, read_private_key, read_fpath
 
 
 class PasswordTx:
@@ -67,7 +67,7 @@ class PasswordTx:
     def register(self):
         """register private key & password
         """
-        if os.path.exists(os.path.join(ROOT_DIR, self.__username)):
+        if os.path.exists(read_fpath(self.__username)):
             return
         password = getpass.getpass("NEW PASSWORD :")
         key = create_key(password)
@@ -88,7 +88,7 @@ class PasswordTx:
     def destroy(self):
         """ destroy private key & password
         """
-        fpath = os.path.join(ROOT_DIR, self.__username)
+        fpath = read_fpath(self.__username)
         if not os.path.exists(fpath):
             raise ValueError("Not Exist key")
         read_private_key(self.__username)
@@ -97,7 +97,7 @@ class PasswordTx:
     def __enter__(self):
         """ check password verification & get temp private key
         """
-        if not os.path.exists(os.path.join(ROOT_DIR, self.__username)):
+        if not os.path.exists(read_fpath(self.__username)):
             raise ValueError(f"Not Registered User...{self.__username}")
 
         self.__key = read_private_key(self.__username)
@@ -115,24 +115,46 @@ class PasswordTx:
         else:
             raise ValueError("verify password first")
 
-    def send(self, func: contract.ContractFunction, value=None):
+    def send(self, func: Union[contract.ContractFunction, str], value=None):
         if not self.__key:
             raise ValueError("verify password first")
 
-        if self.__verbose:
-            print(f"CALL: {func.fn_name}{func.arguments} \nTO: {func.address}")
-
-        if value:
-            tx = func.buildTransaction({
-                "from": self.__address,
-                "value": value,
-                "nonce": self.web3.eth.getTransactionCount(self.__address)
-            })
+        to = None
+        if isinstance(func, str):
+            # case: sending eth
+            if not value:
+                raise ValueError("value must be set")
+            to = self.web3.toChecksumAddress(func)
         else:
-            tx = func.buildTransaction({
-                "from": self.__address,
-                "nonce": self.web3.eth.getTransactionCount(self.__address)
-            })
+            to = func.address
+
+        if self.__verbose:
+            if isinstance(func, contract.ContractFunction):
+                print(f"CALL: {func.fn_name}{func.arguments} \nTO: {to}")
+            else:
+                print(f"SEND ETHER: {value}  \nTO: {to}")
+
+        if isinstance(func, contract.ContractFunction):
+            if value:
+                tx = func.buildTransaction({
+                    "from": self.__address,
+                    "value": value,
+                    "nonce": self.web3.eth.getTransactionCount(self.__address)
+                })
+            else:
+                tx = func.buildTransaction({
+                    "from": self.__address,
+                    "nonce": self.web3.eth.getTransactionCount(self.__address)
+                })
+        else:
+            gasPrice = self.web3.eth.generate_gas_price()
+            tx = {
+                "nonce": self.web3.eth.getTransactionCount(self.__address),
+                "gasPrice": gasPrice if gasPrice else self.web3.toWei('250', 'gwei'),
+                "gas": 21000,
+                "to": to,
+                "value": value
+            }
 
         signed_tx = self.web3.eth.account.signTransaction(tx, self.__key)
         self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)

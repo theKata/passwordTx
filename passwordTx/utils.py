@@ -6,7 +6,11 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from passwordTx import ROOT_DIR
+
+def read_fpath(username:str):
+    root_dir = os.path.join(os.path.expanduser('~'), ".password_tx")
+    os.makedirs(root_dir, exist_ok=True)
+    return os.path.join(root_dir, username)
 
 
 def create_key(password:str):
@@ -25,7 +29,7 @@ def encrypt_key(username: str, key: str, private_key: str):
     """ encrypt & save privateKey to ROOT_DIR
     """
     fernet = Fernet(key)
-    with open(os.path.join(ROOT_DIR, username), "wb") as f:
+    with open(os.path.join(read_fpath(username)), "wb") as f:
         f.write(fernet.encrypt(private_key.encode('utf-8')))
 
 
@@ -33,7 +37,7 @@ def decrypt_key(key: str, username: str):
     """ read & decrpyt privateKey from ROOT_DIR
     """
     fernet = Fernet(key)
-    with open(os.path.join(ROOT_DIR, username), "rb") as f:
+    with open(os.path.join(read_fpath(username)), "rb") as f:
         return fernet.decrypt(f.read()).decode('utf-8')
 
 

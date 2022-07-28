@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='passwordTx',
-    version='0.1',
+    version='0.2',
     packages=['passwordTx'],
     url="https://github.com/theKata/passwordTx",
     python_requires='>=3.6',
